@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="LogCompression/LogCompression.csproj" />
+  <Project Path="Main/Main.csproj" />
+</Solution>

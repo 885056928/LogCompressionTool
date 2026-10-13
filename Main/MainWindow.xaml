@@ -1,0 +1,172 @@
+<Window x:Class="Main.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="日志压缩工具"
+        Icon="Assets/LogCompression.ico"
+        Width="1320" Height="850" MinWidth="1000" MinHeight="650" WindowStartupLocation="CenterScreen"
+        Style="{StaticResource {x:Type Window}}">
+    <Window.InputBindings>
+        <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}" />
+        <KeyBinding Key="O" Modifiers="Control" Command="{Binding OpenFolderCommand}" />
+    </Window.InputBindings>
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" />
+            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid Margin="0,0,0,20">
+            <StackPanel>
+                <TextBlock Text="日志工作台" FontSize="27" FontWeight="SemiBold" />
+                <TextBlock Text="压缩归档 · 查看日志 · 编辑保存" Foreground="{StaticResource MutedBrush}" Margin="0,6,0,0" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button Content="打开目录" Command="{Binding OpenFolderCommand}" ToolTip="打开日志目录（Ctrl+O）" />
+                <Button Content="打开 ZIP" Command="{Binding OpenArchiveCommand}" Margin="8,0,0,0" />
+                <Button Content="打开示例" Command="{Binding OpenSampleCommand}" Margin="8,0,0,0" ToolTip="打开项目中的 LogExample/Logs" />
+            </StackPanel>
+        </Grid>
+        <Border Grid.Row="1" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                CornerRadius="7" Padding="16,12" Margin="0,0,0,16">
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                    <TextBlock Text="{Binding SourceKind}" Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold" />
+                    <TextBox Text="{Binding SourcePath, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Padding="0,4,0,0"
+                             Background="Transparent" ToolTip="路径可选择并复制" />
+                </StackPanel>
+                <StackPanel x:Name="CompressionToolbar" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                            Background="{StaticResource SurfaceBrush}">
+                    <ComboBox x:Name="CompressionModeBox" Width="164" Height="40" ItemsSource="{Binding CompressionModes}" SelectedIndex="{Binding CompressionModeIndex}"
+                              IsEnabled="{Binding IsIdle}" AutomationProperties.Name="压缩方式" Margin="0,0,8,0" />
+                    <ToggleButton x:Name="DatePickerToggle" Width="108" Height="40" Content="{Binding DatePickerText}" IsEnabled="{Binding IsIdle}"
+                                  Visibility="{Binding ShowDaySelection, Converter={StaticResource BoolVisibility}}" Margin="0,0,8,0"
+                                  AutomationProperties.Name="选择需要压缩的日期" />
+                    <Popup x:Name="DatePickerPopup" Placement="Bottom" PlacementTarget="{Binding ElementName=DatePickerToggle}" StaysOpen="False"
+                           IsOpen="{Binding IsChecked, ElementName=DatePickerToggle, Mode=TwoWay}" AllowsTransparency="True"
+                           DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" VerticalOffset="6">
+                        <Border x:Name="DatePickerSurface" Width="440" Padding="16" CornerRadius="7" BorderThickness="1"
+                                Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                TextElement.Foreground="{StaticResource TextBrush}" TextElement.FontFamily="{StaticResource BodyFont}"
+                                TextElement.FontSize="13" KeyboardNavigation.TabNavigation="Cycle" KeyDown="OnDatePickerKeyDown">
+                            <StackPanel IsEnabled="{Binding IsIdle}">
+                                <TextBlock Text="选择压缩日期" FontWeight="SemiBold" FontSize="16" Margin="0,0,0,8" />
+                                <TextBlock Text="{Binding SelectedDaysSummary}" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Button Content="全选日期" Command="{Binding SelectAllDaysCommand}" Padding="10,5" Margin="0,0,6,0" />
+                                    <Button Content="清空日期" Command="{Binding ClearDaysCommand}" Padding="10,5" />
+                                </StackPanel>
+                                <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <ItemsControl ItemsSource="{Binding Days}">
+                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate><DataTemplate>
+                                            <CheckBox Content="{Binding Label}" IsChecked="{Binding IsSelected}" ToolTip="{Binding Details}"
+                                                      Width="196" Margin="0,4,0,6" Cursor="Hand" VerticalContentAlignment="Center"
+                                                      AutomationProperties.Name="{Binding Label}" />
+                                        </DataTemplate></ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                                <Button Content="完成选择" Click="OnDatePickerDone" HorizontalAlignment="Right" Margin="0,12,0,0" />
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                    <ComboBox x:Name="CompressionLevelBox" Width="126" Height="40" ItemsSource="{Binding CompressionLevels}" SelectedIndex="{Binding CompressionLevelIndex}"
+                              IsEnabled="{Binding IsIdle}" AutomationProperties.Name="压缩等级" />
+                    <Button Width="126" Height="40" Content="{Binding CompressionActionText}" Command="{Binding CompressCommand}" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0"
+                            ToolTip="整个目录压缩所有日志；按天模式只压缩勾选日期，与文件名筛选无关" />
+                </StackPanel>
+            </Grid>
+        </Border>
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="365" MinWidth="280" /><ColumnDefinition Width="10" /><ColumnDefinition Width="*" MinWidth="440" /></Grid.ColumnDefinitions>
+            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <StackPanel Margin="16,16,16,12">
+                        <TextBlock Text="日志文件" FontSize="17" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding FileSummary}" Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0" />
+                    </StackPanel>
+                    <Grid Grid.Row="1" Margin="16,0,16,12" IsEnabled="{Binding IsIdle}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="按文件名或相对路径筛选"
+                                 ToolTip="按文件名或日期目录筛选" />
+                        <Button Grid.Column="1" Content="清空" Command="{Binding ClearFilterCommand}" Margin="6,0,0,0" Padding="8,5" />
+                    </Grid>
+                    <Grid Grid.Row="2">
+                        <DataGrid x:Name="FileGrid" ItemsSource="{Binding FileView}" SelectedItem="{Binding SelectedFile}"
+                                  AutoGenerateColumns="False" IsEnabled="{Binding IsIdle}" AutomationProperties.Name="日志文件列表">
+                            <DataGrid.InputBindings>
+                                <MouseBinding Gesture="LeftDoubleClick" Command="{Binding OpenSelectedCommand}" />
+                                <KeyBinding Key="Enter" Command="{Binding OpenSelectedCommand}" />
+                            </DataGrid.InputBindings>
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="文件 / 日期目录" Width="*" SortMemberPath="RelativePath">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate><TextBlock Text="{Binding RelativePath}" VerticalAlignment="Center" Margin="12,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding RelativePath}" /></DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="大小" Binding="{Binding SizeText}" SortMemberPath="Length" Width="95">
+                                    <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="VerticalAlignment" Value="Center" /><Setter Property="Margin" Value="12,0" /></Style></DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <TextBlock Text="{Binding EmptyMessage}" TextWrapping="Wrap" Margin="24" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                   Foreground="{StaticResource MutedBrush}" IsHitTestVisible="False">
+                            <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers>
+                                <DataTrigger Binding="{Binding FileView.IsEmpty}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                            </Style.Triggers></Style></TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                    <Button Grid.Row="3" Content="查看所选" Command="{Binding OpenSelectedCommand}" Margin="16,12,16,16" />
+                </Grid>
+            </Border>
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="{StaticResource BorderBrush}" />
+            <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Grid Margin="16">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="{Binding DocumentTitle}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding DocumentTitle}" />
+                            <TextBlock Text="{Binding DocumentDetails}" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,7,0,0" />
+                        </StackPanel>
+                        <Border Grid.Column="1" Background="{StaticResource HoverBrush}" CornerRadius="4" Padding="10,5" VerticalAlignment="Top">
+                            <TextBlock Text="{Binding DocumentState}" Foreground="{StaticResource PrimaryBrush}" />
+                        </Border>
+                    </Grid>
+                    <TextBox Grid.Row="1" Text="{Binding DocumentLocation, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" FontSize="11"
+                             Padding="16,0,16,12" Foreground="{StaticResource MutedBrush}" ToolTip="完整路径可选择并复制" />
+                    <TextBox Grid.Row="2" x:Name="Editor" Text="{Binding EditorText, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditorReadOnly}"
+                             AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                             FontFamily="{StaticResource CodeFont}" FontSize="13" Background="{StaticResource ConsoleBrush}" Foreground="{StaticResource ConsoleTextBrush}"
+                             CaretBrush="{StaticResource ConsoleTextBrush}" BorderThickness="0" Padding="16" IsUndoEnabled="True" UndoLimit="20"
+                             AutomationProperties.Name="日志文本，可编辑时按 Ctrl+S 保存" />
+                    <StackPanel Grid.Row="3" Margin="16,12,16,16">
+                        <TextBlock Text="{Binding PreviewHint}" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,10" />
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="加载全文编辑" Command="{Binding LoadFullCommand}" />
+                            <Button Content="保存修改" Command="{Binding SaveCommand}" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" ToolTip="保存修改（Ctrl+S）" />
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+        <Grid Grid.Row="3" Margin="0,12,0,0" Height="40">
+            <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Hidden" /><Style.Triggers>
+                <DataTrigger Binding="{Binding IsBusy}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+            </Style.Triggers></Style></Grid.Style>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <StackPanel Margin="0,0,12,0" VerticalAlignment="Center">
+                <ProgressBar Height="5" Value="{Binding Progress, Mode=OneWay}" IsIndeterminate="{Binding IsIndeterminate}" Maximum="100" />
+                <TextBlock Text="{Binding ProgressText}" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="取消操作" Command="{Binding CancelCommand}" />
+        </Grid>
+        <Grid Grid.Row="4" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite">
+                <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource MutedBrush}" /><Style.Triggers>
+                    <DataTrigger Binding="{Binding StatusIsError}" Value="True"><Setter Property="Foreground" Value="{StaticResource ErrorBrush}" /></DataTrigger>
+                </Style.Triggers></Style></TextBlock.Style>
+            </TextBlock>
+            <Button Grid.Column="1" Content="查看刚生成的 ZIP" Command="{Binding OpenLastArchiveCommand}" Margin="16,0,0,0" />
+        </Grid>
+    </Grid>
+</Window>
