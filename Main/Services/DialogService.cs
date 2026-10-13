@@ -9,8 +9,10 @@ public interface IDialogService
 {
     string? ChooseFolder();
     string? ChooseArchive();
+    string? ChooseExtractionArchive();
     string? ChooseOutputArchive(string directory);
     string? ChooseOutputFolder();
+    string? ChooseExtractionFolder();
     bool ConfirmArchiveOverwrite(IReadOnlyList<string> paths);
     UnsavedChoice ConfirmUnsaved(string fileName);
 }
@@ -23,8 +25,14 @@ public sealed class DialogService(Func<Window?> owner) : IDialogService
         return dialog.ShowDialog(owner()) == true ? dialog.FolderName : null;
     }
     public string? ChooseArchive()
+        => ChooseArchive("打开日志压缩包");
+
+    public string? ChooseExtractionArchive()
+        => ChooseArchive("选择要解压的 ZIP");
+
+    private string? ChooseArchive(string title)
     {
-        var dialog = new OpenFileDialog { Title = "打开日志压缩包", Filter = "ZIP 压缩包 (*.zip)|*.zip", CheckFileExists = true };
+        var dialog = new OpenFileDialog { Title = title, Filter = "ZIP 压缩包 (*.zip)|*.zip", CheckFileExists = true };
         return dialog.ShowDialog(owner()) == true ? dialog.FileName : null;
     }
     public string? ChooseOutputArchive(string directory)
@@ -44,6 +52,11 @@ public sealed class DialogService(Func<Window?> owner) : IDialogService
     public string? ChooseOutputFolder()
     {
         var dialog = new OpenFolderDialog { Title = "选择每日 ZIP 的保存目录", Multiselect = false };
+        return dialog.ShowDialog(owner()) == true ? dialog.FolderName : null;
+    }
+    public string? ChooseExtractionFolder()
+    {
+        var dialog = new OpenFolderDialog { Title = "选择 ZIP 解压目标目录", Multiselect = false };
         return dialog.ShowDialog(owner()) == true ? dialog.FolderName : null;
     }
     public bool ConfirmArchiveOverwrite(IReadOnlyList<string> paths)

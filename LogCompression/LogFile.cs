@@ -28,3 +28,11 @@ public sealed record CompressionResult(string ArchivePath, int FileCount, long O
 {
     public double SavedPercentage => OriginalBytes == 0 ? 0 : (1 - ArchiveBytes / (double)OriginalBytes) * 100;
 }
+
+public sealed record ExtractionProgress(int CompletedFiles, int TotalFiles, long ProcessedBytes,
+    long TotalBytes, string CurrentFile, bool IsScanning = false)
+{
+    public double Percentage => IsScanning ? 0 : TotalBytes == 0 ? 100 : ProcessedBytes * 100d / TotalBytes;
+}
+
+public sealed record ExtractionResult(string DestinationDirectory, int FileCount, long ExtractedBytes);

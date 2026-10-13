@@ -15,4 +15,7 @@ public interface ILogService
     Task<CompressionResult> CompressDaysAsync(string directory, IReadOnlyCollection<string> dayNames, string archivePath,
         LogCompressionLevel level = LogCompressionLevel.Balanced,
         IProgress<CompressionProgress>? progress = null, CancellationToken cancellationToken = default);
+    /// <summary>将 ZIP 内容按原有相对路径解压到已有目录；遇到冲突或不安全路径时失败，不覆盖现有文件。</summary>
+    Task<ExtractionResult> ExtractArchiveAsync(string archivePath, string destinationDirectory,
+        IProgress<ExtractionProgress>? progress = null, CancellationToken cancellationToken = default);
 }

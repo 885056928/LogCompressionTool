@@ -8,6 +8,7 @@
 | 单选下拉 | Theme.xaml / WPF ComboBox | 自定义统一模板，固定非编辑选项；弹出层与字段等宽；原生方向键、Escape 和选项选择逻辑 | VerifyUi 键盘、选项选择、几何及绑定检查 |
 | 日期多选 | DaySelectionViewModel / WPF Popup、CheckBox | 实际日期排序、即时勾选、全选/清空；未选日期时压缩不可用；弹窗不挤占编辑区 | VerifyDays / VerifyUi |
 | 压缩方式 | MainViewModel.Compression / LogService | 整个目录、每日独立 ZIP、每日 ZIP 合成总 ZIP；仅 ZIP，日期模式仅包含勾选日期 | VerifyDays / VerifyUi / VerifySample |
+| 解压 ZIP | MainViewModel.Extraction / LogService.Extraction | 选择 ZIP 和目标目录，保留相对目录；暂存完成后提交，不覆盖同名目标；拒绝重复、绝对或越界路径；取消清理暂存内容 | Verify / VerifyUi |
 | 表单/日志编辑 | MainViewModel / WPF TextBox | 预览只读，全文最大 32 MiB；Ctrl+S；原始文本保存 | Verify / VerifyUi |
 | 滚动条 | Theme.xaml / WPF ScrollBar | 由系统控件提供拖动、键盘及高对比度支持，面板内滚动 | WPF 渲染 |
 | 通知 | MainViewModel.Status | 同一状态行显示加载/成功/取消/错误；失败保留编辑内容 | VerifyUi |

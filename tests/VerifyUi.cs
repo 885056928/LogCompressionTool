@@ -47,6 +47,8 @@ var thread = new Thread(() =>
             await WaitReady(model);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             await WaitReady(model);
+            Assert(Descendants(window).OfType<Button>().Any(button => button.Content?.ToString() == "解压 ZIP" &&
+                button.Command == model.ExtractArchiveCommand), "解压按钮绑定到 ViewModel 命令");
             Assert(model.Files.Count == 40 && model.DocumentState == "快速预览", "示例自动加载/预览");
             Capture(window, "wpf-preview.png");
             window.Width = 1000; window.Height = 650;
@@ -162,6 +164,12 @@ var thread = new Thread(() =>
             Assert(!model.IsDirty && model.EditorText.Contains("归档:修改"), "界面 ZIP 编辑保存");
             var archivedFiles = await new LogService().ListArchiveAsync(zip);
             Assert((await new LogService().ReadAsync(archivedFiles[0], true)).Content.Contains("归档:修改"), "归档已实际更新");
+            var extractionFolder = Path.Combine(root, "UiExtracted"); Directory.CreateDirectory(extractionFolder);
+            dialogs.Archive = zip;
+            dialogs.ExtractionFolder = extractionFolder;
+            await model.ExtractArchiveCommand.ExecuteAsync();
+            Assert(!model.StatusIsError && model.Status.Contains("解压完成") &&
+                File.ReadAllText(Path.Combine(extractionFolder, "edit.log")).Contains("归档:修改"), "界面解压命令和目标目录写入");
             var datedLogs = Path.Combine(root, "DaysLogs");
             foreach (var day in new[] { "2026-10-1", "2026-10-3", "2026-10-13" })
             {
@@ -238,7 +246,7 @@ var thread = new Thread(() =>
             window.Closed += (_, _) => closed.SetResult();
             window.Close();
             await closed.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            Console.WriteLine("PASS WPF 日期排序/勾选/全选/清空、每日 ZIP/覆盖确认、多天总包压缩/查看/保存、原有日志编辑与状态流程；绑定警告和错误为 0。");
+            Console.WriteLine("PASS WPF 解压 ZIP、日期选择、每日与总包压缩、日志查看/编辑/保存及绑定流程；绑定警告和错误为 0。");
             finished.SetResult();
         }
         catch (Exception ex) { finished.SetException(ex); }
@@ -294,13 +302,17 @@ sealed class TestDialogs : IDialogService
 {
     public UnsavedChoice Choice { get; set; } = UnsavedChoice.Cancel;
     public string? ChooseFolder() => null;
-    public string? ChooseArchive() => null;
+    public string? Archive { get; set; }
+    public string? ChooseArchive() => Archive;
+    public string? ChooseExtractionArchive() => Archive;
     public string? OutputArchive { get; set; }
     public string? OutputFolder { get; set; }
+    public string? ExtractionFolder { get; set; }
     public bool AllowOverwrite { get; set; }
     public int OverwriteRequests { get; private set; }
     public string? ChooseOutputArchive(string directory) => OutputArchive;
     public string? ChooseOutputFolder() => OutputFolder;
+    public string? ChooseExtractionFolder() => ExtractionFolder;
     public bool ConfirmArchiveOverwrite(IReadOnlyList<string> paths) { OverwriteRequests++; return AllowOverwrite; }
     public UnsavedChoice ConfirmUnsaved(string fileName) => Choice;
 }

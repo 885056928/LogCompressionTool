@@ -15,11 +15,13 @@
         <Grid Margin="0,0,0,20">
             <StackPanel>
                 <TextBlock Text="日志工作台" FontSize="27" FontWeight="SemiBold" />
-                <TextBlock Text="压缩归档 · 查看日志 · 编辑保存" Foreground="{StaticResource MutedBrush}" Margin="0,6,0,0" />
+                <TextBlock Text="压缩归档 · 解压 ZIP · 查看日志 · 编辑保存" Foreground="{StaticResource MutedBrush}" Margin="0,6,0,0" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                 <Button Content="打开目录" Command="{Binding OpenFolderCommand}" ToolTip="打开日志目录（Ctrl+O）" />
                 <Button Content="打开 ZIP" Command="{Binding OpenArchiveCommand}" Margin="8,0,0,0" />
+                <Button Content="解压 ZIP" Command="{Binding ExtractArchiveCommand}" Margin="8,0,0,0"
+                        ToolTip="选择 ZIP 压缩包和解压目标目录" />
                 <Button Content="打开示例" Command="{Binding OpenSampleCommand}" Margin="8,0,0,0" ToolTip="打开项目中的 LogExample/Logs" />
             </StackPanel>
         </Grid>

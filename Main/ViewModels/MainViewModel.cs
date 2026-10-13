@@ -102,6 +102,7 @@ public sealed partial class MainViewModel : ObservableObject
     public AsyncCommand LoadFullCommand { get; }
     public AsyncCommand SaveCommand { get; }
     public AsyncCommand CompressCommand { get; }
+    public AsyncCommand ExtractArchiveCommand { get; }
     public AsyncCommand OpenLastArchiveCommand { get; }
     public RelayCommand ClearFilterCommand { get; }
     public RelayCommand CancelCommand { get; }
@@ -136,6 +137,7 @@ public sealed partial class MainViewModel : ObservableObject
         }),
             () => _document is { IsPreview: true } && _document.File.Length <= LogService.MaximumEditBytes);
         SaveCommand = Command(async () => await SaveCurrentAsync(), () => IsDirty);
+        ExtractArchiveCommand = Command(ExtractArchiveAsync);
         CompressCommand = Command(CompressAsync, () => !_sourceIsArchive && Directory.Exists(_sourcePath) && Files.Count > 0 &&
             (CompressionModeIndex == 0 || Days.Any(d => d.IsSelected)));
         SelectAllDaysCommand = new RelayCommand(() => { foreach (var day in Days) day.IsSelected = true; }, () => !IsBusy && Days.Any(d => !d.IsSelected));

@@ -35,6 +35,57 @@ try
         var doc = await service.ReadAsync(files.Single(f => f.Name == "中文.log"), true);
         Assert(doc.Content == original && doc.HasBom && !doc.IsPreview);
     });
+    await Check("解压 ZIP 保留目录结构和文件内容", async () =>
+    {
+        var output = Path.Combine(root, "extracted"); Directory.CreateDirectory(output);
+        var result = await service.ExtractArchiveAsync(zip, output);
+        Assert(result.FileCount == 2 && File.ReadAllText(Path.Combine(output, "2026-10-1", "中文.log")) == original);
+        Assert(File.ReadAllText(Path.Combine(output, "宽字符.LOG")) == "[2026-10-01]编码:中文");
+    });
+    await Check("解压遇到重名文件时在写入其他条目前停止", async () =>
+    {
+        var source = Path.Combine(root, "collision.zip");
+        using (var archive = ZipFile.Open(source, ZipArchiveMode.Create))
+        {
+            using (var first = new StreamWriter(archive.CreateEntry("exists.log").Open())) first.Write("归档内容");
+            using (var second = new StreamWriter(archive.CreateEntry("new.log").Open())) second.Write("新增内容");
+        }
+        var output = Path.Combine(root, "collision-output"); Directory.CreateDirectory(output);
+        var existing = Path.Combine(output, "exists.log"); File.WriteAllText(existing, "原有内容");
+        await Throws<IOException>(() => service.ExtractArchiveAsync(source, output));
+        Assert(File.ReadAllText(existing) == "原有内容" && !File.Exists(Path.Combine(output, "new.log")));
+    });
+    await Check("解压拒绝路径穿越且不写入目标目录之外", async () =>
+    {
+        var source = Path.Combine(root, "unsafe.zip");
+        using (var archive = ZipFile.Open(source, ZipArchiveMode.Create)) archive.CreateEntry("../escaped.log");
+        var output = Path.Combine(root, "unsafe-output"); Directory.CreateDirectory(output);
+        await Throws<InvalidDataException>(() => service.ExtractArchiveAsync(source, output));
+        Assert(!File.Exists(Path.Combine(root, "escaped.log")) && !Directory.EnumerateFileSystemEntries(output).Any());
+    });
+    await Check("解压拒绝重复 ZIP 路径", async () =>
+    {
+        var source = Path.Combine(root, "duplicate-extract.zip");
+        using (var archive = ZipFile.Open(source, ZipArchiveMode.Create))
+        {
+            using (var first = new StreamWriter(archive.CreateEntry("same.txt").Open())) first.Write("第一份");
+            using (var second = new StreamWriter(archive.CreateEntry("same.txt").Open())) second.Write("第二份");
+        }
+        var output = Path.Combine(root, "duplicate-output"); Directory.CreateDirectory(output);
+        await Throws<InvalidDataException>(() => service.ExtractArchiveAsync(source, output));
+        Assert(!Directory.EnumerateFileSystemEntries(output).Any());
+    });
+    await Check("取消解压清理暂存内容", async () =>
+    {
+        var source = Path.Combine(root, "cancel-extract.zip");
+        using (var archive = ZipFile.Open(source, ZipArchiveMode.Create))
+        using (var data = archive.CreateEntry("large.bin").Open()) data.Write(new byte[1024 * 1024]);
+        var output = Path.Combine(root, "cancel-output"); Directory.CreateDirectory(output);
+        using var cts = new CancellationTokenSource();
+        var progress = new CancelExtractionProgress(() => cts.Cancel());
+        await Throws<OperationCanceledException>(() => service.ExtractArchiveAsync(source, output, progress, cts.Token));
+        Assert(progress.Reported && !Directory.EnumerateFileSystemEntries(output).Any());
+    });
     await Check("ZIP 编辑保存保留其他条目", async () =>
     {
         var files = await service.ListArchiveAsync(zip);
@@ -185,5 +236,15 @@ sealed class OnceProgress(Action firstReport) : IProgress<CompressionProgress>
         if (_reported) return;
         _reported = true;
         firstReport();
+    }
+}
+sealed class CancelExtractionProgress(Action cancel) : IProgress<ExtractionProgress>
+{
+    public bool Reported { get; private set; }
+    public void Report(ExtractionProgress value)
+    {
+        if (value.ProcessedBytes == 0 || Reported) return;
+        Reported = true;
+        cancel();
     }
 }

@@ -53,6 +53,15 @@ try
             Assert(reader.ReadToEnd() == "[" + Path.GetFileNameWithoutExtension(entry.Name) + "]测试:原始内容\r\n");
         }
     });
+    await Check("解压总包时保留每日 ZIP，不递归展开", async () =>
+    {
+        var output = Path.Combine(root, "bundle-extracted"); Directory.CreateDirectory(output);
+        var result = await service.ExtractArchiveAsync(bundle, output);
+        var daily = Path.Combine(output, "2026-10-1.zip");
+        Assert(result.FileCount == 2 && File.Exists(daily) && !Directory.Exists(Path.Combine(output, "Device")));
+        using var archive = ZipFile.OpenRead(daily);
+        Assert(archive.GetEntry("Device/中文.log") is not null);
+    });
     await Check("程序可直接列出并读取总包内每日日志", async () =>
     {
         var files = await service.ListArchiveAsync(bundle);

@@ -60,6 +60,10 @@ public sealed partial class LogService : ILogService
         CancellationToken cancellationToken = default)
         => Task.Run(() => Compress(directory, archivePath, level, progress, cancellationToken), cancellationToken);
 
+    public Task<ExtractionResult> ExtractArchiveAsync(string archivePath, string destinationDirectory,
+        IProgress<ExtractionProgress>? progress = null, CancellationToken cancellationToken = default)
+        => Task.Run(() => ExtractArchive(archivePath, destinationDirectory, progress, cancellationToken), cancellationToken);
+
     private static LogFile[] ListDirectory(string directory, CancellationToken token)
     {
         var root = Path.GetFullPath(directory);
