@@ -43,7 +43,7 @@ public sealed partial class MainViewModel : ObservableObject
         set
         {
             if (!Set(ref _editorText, value)) return;
-            _searchMatchStart = -1;
+            ResetSearch();
             OnPropertyChanged(nameof(IsDirty));
             OnPropertyChanged(nameof(DocumentState));
             CommandManager.InvalidateRequerySuggested();
@@ -56,14 +56,16 @@ public sealed partial class MainViewModel : ObservableObject
         set
         {
             if (!Set(ref _searchText, value)) return;
-            _searchMatchStart = -1;
-            SearchFeedback = string.IsNullOrWhiteSpace(value) ? "输入关键词并按 Enter 搜索" : "按 Enter 查找下一个";
+            ResetSearch();
             if (string.IsNullOrWhiteSpace(value)) ClearSearchSelection();
             CommandManager.InvalidateRequerySuggested();
         }
     }
     private string _searchFeedback = "输入关键词并按 Enter 搜索";
     public string SearchFeedback { get => _searchFeedback; private set => Set(ref _searchFeedback, value); }
+    private int _searchMatchStart = -1;
+    private int? _searchMatchCount;
+    private int _searchMatchOrdinal;
     private int _searchSelectionStart;
     public int SearchSelectionStart { get => _searchSelectionStart; private set => Set(ref _searchSelectionStart, value); }
     private int _searchSelectionLength;
@@ -183,9 +185,24 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (_document is null || string.IsNullOrWhiteSpace(SearchText)) return;
 
-        // 只查找下一项或上一项，避免在最大 32 MiB 的可编辑日志中为所有命中项分配索引表。
+        var total = _searchMatchCount.GetValueOrDefault();
+        if (_searchMatchCount is null)
+        {
+            // 关键词或内容变化后的首次搜索才统计总数；只保留计数，避免为大日志分配命中索引表。
+            for (var start = 0; start < EditorText.Length;)
+            {
+                var match = EditorText.IndexOf(SearchText, start, StringComparison.OrdinalIgnoreCase);
+                if (match < 0) break;
+                total++;
+                // 与前后查找一致，包含重叠匹配，例如 aaa 中的 aa 为两处。
+                start = match + 1;
+            }
+            _searchMatchCount = total;
+        }
+
+        var scope = _document.IsPreview ? "预览：" : "";
         var index = -1;
-        if (EditorText.Length > 0 && forward)
+        if (total > 0 && forward)
         {
             var start = _searchMatchStart < 0 ? 0 : _searchMatchStart + 1;
             if (start < EditorText.Length)
@@ -193,11 +210,12 @@ public sealed partial class MainViewModel : ObservableObject
             if (index < 0 && start > 0)
                 index = EditorText.IndexOf(SearchText, StringComparison.OrdinalIgnoreCase);
         }
-        else if (EditorText.Length > 0)
+        else if (total > 0)
         {
+            // LastIndexOf 的起点限制的是匹配末尾，扩大到上一项可能的末尾才能保留重叠命中。
             index = _searchMatchStart <= 0
                 ? EditorText.LastIndexOf(SearchText, EditorText.Length - 1, StringComparison.OrdinalIgnoreCase)
-                : EditorText.LastIndexOf(SearchText, _searchMatchStart - 1, StringComparison.OrdinalIgnoreCase);
+                : EditorText.LastIndexOf(SearchText, _searchMatchStart + SearchText.Length - 2, StringComparison.OrdinalIgnoreCase);
             if (index < 0)
                 index = EditorText.LastIndexOf(SearchText, EditorText.Length - 1, StringComparison.OrdinalIgnoreCase);
         }
@@ -205,19 +223,30 @@ public sealed partial class MainViewModel : ObservableObject
         if (index < 0)
         {
             _searchMatchStart = -1;
-            SearchFeedback = "没有找到匹配内容";
+            _searchMatchOrdinal = 0;
+            SearchFeedback = scope + "没有找到匹配内容（共 0 处）";
             ClearSearchSelection();
             return;
         }
 
         _searchMatchStart = index;
+        _searchMatchOrdinal = forward
+            ? _searchMatchOrdinal == total ? 1 : _searchMatchOrdinal + 1
+            : _searchMatchOrdinal <= 1 ? total : _searchMatchOrdinal - 1;
         SearchSelectionStart = index;
         SearchSelectionLength = SearchText.Length;
-        SearchFeedback = "已定位到匹配内容";
+        SearchFeedback = $"{scope}第 {_searchMatchOrdinal} / 共 {total} 处";
         SearchSelectionVersion++;
     }
 
-    private int _searchMatchStart = -1;
+    private void ResetSearch()
+    {
+        _searchMatchStart = -1;
+        _searchMatchCount = null;
+        _searchMatchOrdinal = 0;
+        SearchFeedback = _document is null ? "打开日志后可搜索" :
+            string.IsNullOrWhiteSpace(SearchText) ? "输入关键词并按 Enter 搜索" : "按 Enter 查找下一个";
+    }
 
     private void ClearSearchSelection()
     {
@@ -290,10 +319,9 @@ public sealed partial class MainViewModel : ObservableObject
     private void ApplyDocument(LogDocument? document)
     {
         _document = document;
-        _searchMatchStart = -1;
         SearchText = "";
-        SearchFeedback = document is null ? "打开日志后可搜索" : "输入关键词并按 Enter 搜索";
         EditorText = document?.Content ?? "";
+        ResetSearch();
         foreach (var name in new[] { nameof(HasDocument), nameof(IsEditorReadOnly), nameof(DocumentTitle), nameof(DocumentLocation),
             nameof(DocumentDetails), nameof(DocumentState), nameof(PreviewHint), nameof(IsDirty) }) OnPropertyChanged(name);
         CommandManager.InvalidateRequerySuggested();

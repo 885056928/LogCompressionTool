@@ -55,6 +55,7 @@ var thread = new Thread(() =>
             var previewEditor = (TextBox)window.FindName("Editor");
             var previewNext = (Button)window.FindName("SearchNextButton");
             model.SearchText = model.EditorText[..10];
+            var previewMatchCount = model.EditorText.Split(model.SearchText, StringSplitOptions.None).Length - 1;
             previewNext.Focus();
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             var previewBeforeHighlight = SurfacePixels(previewEditor);
@@ -63,6 +64,7 @@ var thread = new Thread(() =>
             Assert(previewEditor.IsReadOnly && previewEditor.SelectedText == model.SearchText && !model.IsDirty &&
                 previewNext.IsKeyboardFocused && !previewBeforeHighlight.SequenceEqual(SurfacePixels(previewEditor)),
                 "只读预览通过搜索按钮定位后保留按钮焦点并显示高亮");
+            Assert(model.SearchFeedback == $"预览：第 1 / 共 {previewMatchCount} 处", "预览仅统计已加载文本并明确标注范围");
             Capture(window, "wpf-search-preview.png");
             model.ClearSearchCommand.Execute(null);
             Capture(window, "wpf-preview.png");
@@ -166,8 +168,9 @@ var thread = new Thread(() =>
                 PresentationSource.FromVisual(searchBox)!, Environment.TickCount, System.Windows.Input.Key.Enter)
                 { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent });
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
-            Assert(searchEditor.SelectedText == "needle" && searchEditor.SelectionStart == 0 && model.SearchFeedback == "已定位到匹配内容",
+            Assert(searchEditor.SelectedText == "needle" && searchEditor.SelectionStart == 0 && model.SearchFeedback == "第 1 / 共 3 处",
                 "搜索首个匹配并在编辑区高亮");
+            Assert(((TextBlock)window.FindName("SearchFeedbackText")).Text == "第 1 / 共 3 处", "搜索计数显示在界面上");
             Assert(searchBox.IsKeyboardFocused, "搜索后保留搜索框焦点，允许连续 Enter 查找");
             CaptureSurface(searchEditor, "wpf-search-inactive.png");
             Capture(window, "wpf-search-inactive-window.png");
@@ -176,29 +179,49 @@ var thread = new Thread(() =>
             InvokeButton(nextSearchButton);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Assert(searchEditor.SelectedText == "needle" && searchEditor.SelectionStart == 10 &&
-                nextSearchButton.IsKeyboardFocused && model.SearchFeedback == "已定位到匹配内容",
+                nextSearchButton.IsKeyboardFocused && model.SearchFeedback == "第 2 / 共 3 处",
                 "点击下一个按钮定位匹配并保留按钮焦点");
             model.SearchNextCommand.Execute(null);
             model.SearchNextCommand.Execute(null);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
-            Assert(searchEditor.SelectionStart == 0 && model.SearchFeedback == "已定位到匹配内容", "搜索结果循环到开头");
+            Assert(searchEditor.SelectionStart == 0 && model.SearchFeedback == "第 1 / 共 3 处", "搜索结果循环到开头并同步计数");
             var previousSearchButton = (Button)window.FindName("SearchPreviousButton");
             InvokeButton(previousSearchButton);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Assert(searchEditor.SelectionStart == 20 && previousSearchButton.IsKeyboardFocused &&
-                model.SearchFeedback == "已定位到匹配内容", "点击上一个按钮循环到末尾并保留按钮焦点");
+                model.SearchFeedback == "第 3 / 共 3 处", "点击上一个按钮循环到末尾并同步计数");
+            model.SearchText = "甲";
+            Assert(model.SearchFeedback == "按 Enter 查找下一个", "改变关键词后清除旧计数");
+            model.SearchPreviousCommand.Execute(null);
+            Assert(model.SearchFeedback == "第 1 / 共 1 处", "首次向前搜索统计单个匹配");
+            model.SearchNextCommand.Execute(null);
+            Assert(model.SearchFeedback == "第 1 / 共 1 处", "单个匹配循环时序号保持为 1");
             model.EditorText = "aaa";
             model.SearchText = "aa";
             model.SearchNextCommand.Execute(null);
             model.SearchNextCommand.Execute(null);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
-            Assert(searchEditor.SelectionStart == 1, "搜索支持重叠匹配");
+            Assert(searchEditor.SelectionStart == 1 && model.SearchFeedback == "第 2 / 共 2 处", "搜索计数包含重叠匹配");
+            model.SearchPreviousCommand.Execute(null);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert(searchEditor.SelectionStart == 0 && model.SearchFeedback == "第 1 / 共 2 处", "重叠匹配向前跳转时序号与选区一致");
+            model.EditorText = "aaaa";
+            Assert(model.SearchFeedback == "按 Enter 查找下一个", "修改内容后清除旧计数");
+            model.SearchPreviousCommand.Execute(null);
+            Assert(model.SearchFeedback == "第 3 / 共 3 处", "相同关键词在修改内容后重新统计并从末尾查找");
+            model.EditorText = "aa";
+            model.SearchNextCommand.Execute(null);
+            Assert(model.SearchFeedback == "第 1 / 共 1 处", "缩短内容后重新统计");
+            model.EditorText = "";
+            model.SearchNextCommand.Execute(null);
+            Assert(model.SearchFeedback == "没有找到匹配内容（共 0 处）", "空内容匹配计数为 0");
             model.SearchText = "不存在的内容";
             model.SearchNextCommand.Execute(null);
-            Assert(model.SearchFeedback == "没有找到匹配内容", "无匹配内容反馈");
+            Assert(model.SearchFeedback == "没有找到匹配内容（共 0 处）", "无匹配内容反馈包含计数 0");
             model.ClearSearchCommand.Execute(null);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
-            Assert(searchBox.Text.Length == 0 && searchEditor.SelectionLength == 0, "清空搜索并移除高亮");
+            Assert(searchBox.Text.Length == 0 && searchEditor.SelectionLength == 0 &&
+                model.SearchFeedback == "输入关键词并按 Enter 搜索", "清空搜索并重置计数与高亮");
             model.EditorText = "needle 开头\r\n" + string.Concat(Enumerable.Repeat("普通日志\r\n", 60)) +
                 new string('x', 500) + "needle 长行末尾\r\n";
             model.SearchText = "needle";

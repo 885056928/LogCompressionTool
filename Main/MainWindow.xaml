@@ -147,7 +147,7 @@
                         <Button x:Name="SearchPreviousButton" Grid.Column="1" Content="上一个" Command="{Binding SearchPreviousCommand}" Margin="6,0,0,0" Padding="9,5" ToolTip="查找上一个匹配项（Shift+Enter）" />
                         <Button x:Name="SearchNextButton" Grid.Column="2" Content="下一个" Command="{Binding SearchNextCommand}" Margin="6,0,0,0" Padding="9,5" ToolTip="查找下一个匹配项（Enter）" />
                         <Button Grid.Column="3" Content="清空" Command="{Binding ClearSearchCommand}" Margin="6,0,0,0" Padding="9,5" AutomationProperties.Name="清空日志搜索" />
-                        <TextBlock Grid.Column="4" Text="{Binding SearchFeedback}" Foreground="{StaticResource MutedBrush}" FontSize="11"
+                        <TextBlock x:Name="SearchFeedbackText" Grid.Column="4" Text="{Binding SearchFeedback}" ToolTip="{Binding SearchFeedback}" Foreground="{StaticResource MutedBrush}" FontSize="11"
                                    VerticalAlignment="Center" TextAlignment="Right" MinWidth="92" Margin="8,0,0,0" AutomationProperties.LiveSetting="Polite" />
                     </Grid>
                     <TextBox Grid.Row="3" x:Name="Editor" Text="{Binding EditorText, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditorReadOnly}"
