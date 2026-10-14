@@ -11,12 +11,33 @@ public partial class MainWindow : Window
 {
     private bool _allowClose;
     private bool _checkingClose;
+    private MainViewModel? _searchViewModel;
     public MainWindow()
     {
         InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
         DataContext = new MainViewModel(new LogService(), new DialogService(() => this));
         Loaded += OnLoaded;
         Closing += OnClosing;
+    }
+
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (_searchViewModel is not null) _searchViewModel.PropertyChanged -= OnSearchViewModelPropertyChanged;
+        _searchViewModel = e.NewValue as MainViewModel;
+        if (_searchViewModel is not null) _searchViewModel.PropertyChanged += OnSearchViewModelPropertyChanged;
+    }
+
+    private void OnSearchViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(MainViewModel.SearchSelectionVersion)) return;
+
+        var viewModel = _searchViewModel;
+        if (viewModel is null) return;
+        var start = Math.Clamp(viewModel.SearchSelectionStart, 0, Editor.Text.Length);
+        var length = Math.Clamp(viewModel.SearchSelectionLength, 0, Editor.Text.Length - start);
+        Editor.Select(start, length);
+        if (length > 0) Editor.ScrollToLine(Editor.GetLineIndexFromCharacterIndex(start));
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)

@@ -122,7 +122,7 @@
             <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="{StaticResource BorderBrush}" />
             <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7">
                 <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                     <Grid Margin="16">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <StackPanel Margin="0,0,12,0">
@@ -135,12 +135,27 @@
                     </Grid>
                     <TextBox Grid.Row="1" Text="{Binding DocumentLocation, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" FontSize="11"
                              Padding="16,0,16,12" Foreground="{StaticResource MutedBrush}" ToolTip="完整路径可选择并复制" />
-                    <TextBox Grid.Row="2" x:Name="Editor" Text="{Binding EditorText, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditorReadOnly}"
+                    <Grid Grid.Row="2" Margin="16,0,16,10" IsEnabled="{Binding IsIdle}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <TextBox x:Name="LogSearchBox" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.Name="搜索当前日志内容" ToolTip="不区分大小写；只搜索当前已打开或预览的内容">
+                            <TextBox.InputBindings>
+                                <KeyBinding Key="Enter" Command="{Binding SearchNextCommand}" />
+                                <KeyBinding Key="Enter" Modifiers="Shift" Command="{Binding SearchPreviousCommand}" />
+                            </TextBox.InputBindings>
+                        </TextBox>
+                        <Button x:Name="SearchPreviousButton" Grid.Column="1" Content="上一个" Command="{Binding SearchPreviousCommand}" Margin="6,0,0,0" Padding="9,5" ToolTip="查找上一个匹配项（Shift+Enter）" />
+                        <Button x:Name="SearchNextButton" Grid.Column="2" Content="下一个" Command="{Binding SearchNextCommand}" Margin="6,0,0,0" Padding="9,5" ToolTip="查找下一个匹配项（Enter）" />
+                        <Button Grid.Column="3" Content="清空" Command="{Binding ClearSearchCommand}" Margin="6,0,0,0" Padding="9,5" AutomationProperties.Name="清空日志搜索" />
+                        <TextBlock Grid.Column="4" Text="{Binding SearchFeedback}" Foreground="{StaticResource MutedBrush}" FontSize="11"
+                                   VerticalAlignment="Center" TextAlignment="Right" MinWidth="92" Margin="8,0,0,0" AutomationProperties.LiveSetting="Polite" />
+                    </Grid>
+                    <TextBox Grid.Row="3" x:Name="Editor" Text="{Binding EditorText, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditorReadOnly}"
                              AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                              FontFamily="{StaticResource CodeFont}" FontSize="13" Background="{StaticResource ConsoleBrush}" Foreground="{StaticResource ConsoleTextBrush}"
                              CaretBrush="{StaticResource ConsoleTextBrush}" BorderThickness="0" Padding="16" IsUndoEnabled="True" UndoLimit="20"
                              AutomationProperties.Name="日志文本，可编辑时按 Ctrl+S 保存" />
-                    <StackPanel Grid.Row="3" Margin="16,12,16,16">
+                    <StackPanel Grid.Row="4" Margin="16,12,16,16">
                         <TextBlock Text="{Binding PreviewHint}" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,10" />
                         <StackPanel Orientation="Horizontal">
                             <Button Content="加载全文编辑" Command="{Binding LoadFullCommand}" />

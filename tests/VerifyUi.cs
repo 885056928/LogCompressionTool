@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -50,6 +51,7 @@ var thread = new Thread(() =>
             Assert(Descendants(window).OfType<Button>().Any(button => button.Content?.ToString() == "解压 ZIP" &&
                 button.Command == model.ExtractArchiveCommand), "解压按钮绑定到 ViewModel 命令");
             Assert(model.Files.Count == 40 && model.DocumentState == "快速预览", "示例自动加载/预览");
+            Assert(window.FindName("LogSearchBox") is TextBox, "当前日志搜索输入框可见");
             Capture(window, "wpf-preview.png");
             window.Width = 1000; window.Height = 650;
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
@@ -129,6 +131,47 @@ var thread = new Thread(() =>
             await model.LoadFullCommand.ExecuteAsync();
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Assert(model.DocumentState == "可编辑" && model.EditorText.EndsWith("\r\n"), "10 MB 示例日志全文加载");
+            var searchBox = (TextBox)window.FindName("LogSearchBox");
+            var searchEditor = (TextBox)window.FindName("Editor");
+            Assert(AutomationProperties.GetName(searchBox) == "搜索当前日志内容" &&
+                window.FindName("SearchNextButton") is Button && window.FindName("SearchPreviousButton") is Button,
+                "当前日志搜索控件和无障碍名称");
+            Assert(searchBox.InputBindings.OfType<System.Windows.Input.KeyBinding>().Any(key => key.Key == System.Windows.Input.Key.Enter &&
+                key.Modifiers == System.Windows.Input.ModifierKeys.None && key.Command == model.SearchNextCommand) &&
+                searchBox.InputBindings.OfType<System.Windows.Input.KeyBinding>().Any(key => key.Key == System.Windows.Input.Key.Enter &&
+                key.Modifiers == System.Windows.Input.ModifierKeys.Shift && key.Command == model.SearchPreviousCommand),
+                "Enter 和 Shift+Enter 快捷键绑定");
+            var originalEditorText = model.EditorText;
+            model.EditorText = "needle 甲\r\nneedle 乙\r\nneedle 丙\r\n";
+            model.SearchText = "NEEDLE";
+            model.SearchNextCommand.Execute(null);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert(searchEditor.SelectedText == "needle" && searchEditor.SelectionStart == 0 && model.SearchFeedback == "已定位到匹配内容",
+                "搜索首个匹配并在编辑区高亮");
+            model.SearchNextCommand.Execute(null);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert(searchEditor.SelectedText == "needle" && searchEditor.SelectionStart == 10 && model.SearchFeedback == "已定位到匹配内容",
+                "搜索下一个匹配");
+            model.SearchNextCommand.Execute(null);
+            model.SearchNextCommand.Execute(null);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert(searchEditor.SelectionStart == 0 && model.SearchFeedback == "已定位到匹配内容", "搜索结果循环到开头");
+            model.SearchPreviousCommand.Execute(null);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert(searchEditor.SelectionStart == 20 && model.SearchFeedback == "已定位到匹配内容", "向前搜索并循环到末尾");
+            model.EditorText = "aaa";
+            model.SearchText = "aa";
+            model.SearchNextCommand.Execute(null);
+            model.SearchNextCommand.Execute(null);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert(searchEditor.SelectionStart == 1, "搜索支持重叠匹配");
+            model.SearchText = "不存在的内容";
+            model.SearchNextCommand.Execute(null);
+            Assert(model.SearchFeedback == "没有找到匹配内容", "无匹配内容反馈");
+            model.ClearSearchCommand.Execute(null);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert(searchBox.Text.Length == 0 && searchEditor.SelectionLength == 0, "清空搜索并移除高亮");
+            model.EditorText = originalEditorText;
             model.Filter = "没有匹配的日志";
             Assert(model.FileView.IsEmpty, "文件筛选无结果");
             model.ClearFilterCommand.Execute(null);
