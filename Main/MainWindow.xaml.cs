@@ -36,8 +36,24 @@ public partial class MainWindow : Window
         if (viewModel is null) return;
         var start = Math.Clamp(viewModel.SearchSelectionStart, 0, Editor.Text.Length);
         var length = Math.Clamp(viewModel.SearchSelectionLength, 0, Editor.Text.Length - start);
+        var focusedElement = Keyboard.FocusedElement;
+        // WPF 首次绘制选区需要激活编辑器；恢复原焦点以便搜索框继续用 Enter 查找。
+        if (length > 0) Editor.Focus();
         Editor.Select(start, length);
-        if (length > 0) Editor.ScrollToLine(Editor.GetLineIndexFromCharacterIndex(start));
+        if (length > 0)
+        {
+            var line = Editor.GetLineIndexFromCharacterIndex(start);
+            Editor.ScrollToLine(line);
+            Editor.UpdateLayout();
+            var matchRect = Editor.GetRectFromCharacterIndex(start);
+            var lineStartRect = Editor.GetRectFromCharacterIndex(Editor.GetCharacterIndexFromLineIndex(line));
+            // 日志不自动换行，按实际字符位置滚动，确保长行右侧的命中也出现在视口中。
+            if (!matchRect.IsEmpty && !lineStartRect.IsEmpty)
+                Editor.ScrollToHorizontalOffset(Math.Max(0, matchRect.Left - lineStartRect.Left));
+            // 滚动布局完成后再恢复焦点，避免失焦选区保留滚动前的绘制区域。
+            Editor.UpdateLayout();
+            if (focusedElement is not null && focusedElement != Editor) Keyboard.Focus(focusedElement);
+        }
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)

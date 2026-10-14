@@ -52,6 +52,19 @@ var thread = new Thread(() =>
                 button.Command == model.ExtractArchiveCommand), "解压按钮绑定到 ViewModel 命令");
             Assert(model.Files.Count == 40 && model.DocumentState == "快速预览", "示例自动加载/预览");
             Assert(window.FindName("LogSearchBox") is TextBox, "当前日志搜索输入框可见");
+            var previewEditor = (TextBox)window.FindName("Editor");
+            var previewNext = (Button)window.FindName("SearchNextButton");
+            model.SearchText = model.EditorText[..10];
+            previewNext.Focus();
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            var previewBeforeHighlight = SurfacePixels(previewEditor);
+            InvokeButton(previewNext);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert(previewEditor.IsReadOnly && previewEditor.SelectedText == model.SearchText && !model.IsDirty &&
+                previewNext.IsKeyboardFocused && !previewBeforeHighlight.SequenceEqual(SurfacePixels(previewEditor)),
+                "只读预览通过搜索按钮定位后保留按钮焦点并显示高亮");
+            Capture(window, "wpf-search-preview.png");
+            model.ClearSearchCommand.Execute(null);
             Capture(window, "wpf-preview.png");
             window.Width = 1000; window.Height = 650;
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
@@ -144,21 +157,36 @@ var thread = new Thread(() =>
             var originalEditorText = model.EditorText;
             model.EditorText = "needle 甲\r\nneedle 乙\r\nneedle 丙\r\n";
             model.SearchText = "NEEDLE";
-            model.SearchNextCommand.Execute(null);
+            window.Activate();
+            searchBox.Focus();
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert(searchBox.IsKeyboardFocused && !searchEditor.IsKeyboardFocusWithin, "搜索时焦点保留在搜索框");
+            var beforeHighlight = SurfacePixels(searchEditor);
+            searchBox.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,
+                PresentationSource.FromVisual(searchBox)!, Environment.TickCount, System.Windows.Input.Key.Enter)
+                { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent });
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Assert(searchEditor.SelectedText == "needle" && searchEditor.SelectionStart == 0 && model.SearchFeedback == "已定位到匹配内容",
                 "搜索首个匹配并在编辑区高亮");
-            model.SearchNextCommand.Execute(null);
+            Assert(searchBox.IsKeyboardFocused, "搜索后保留搜索框焦点，允许连续 Enter 查找");
+            CaptureSurface(searchEditor, "wpf-search-inactive.png");
+            Capture(window, "wpf-search-inactive-window.png");
+            Assert(!beforeHighlight.SequenceEqual(SurfacePixels(searchEditor)), "编辑器未获焦点时命中项仍有可见高亮");
+            var nextSearchButton = (Button)window.FindName("SearchNextButton");
+            InvokeButton(nextSearchButton);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
-            Assert(searchEditor.SelectedText == "needle" && searchEditor.SelectionStart == 10 && model.SearchFeedback == "已定位到匹配内容",
-                "搜索下一个匹配");
+            Assert(searchEditor.SelectedText == "needle" && searchEditor.SelectionStart == 10 &&
+                nextSearchButton.IsKeyboardFocused && model.SearchFeedback == "已定位到匹配内容",
+                "点击下一个按钮定位匹配并保留按钮焦点");
             model.SearchNextCommand.Execute(null);
             model.SearchNextCommand.Execute(null);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Assert(searchEditor.SelectionStart == 0 && model.SearchFeedback == "已定位到匹配内容", "搜索结果循环到开头");
-            model.SearchPreviousCommand.Execute(null);
+            var previousSearchButton = (Button)window.FindName("SearchPreviousButton");
+            InvokeButton(previousSearchButton);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
-            Assert(searchEditor.SelectionStart == 20 && model.SearchFeedback == "已定位到匹配内容", "向前搜索并循环到末尾");
+            Assert(searchEditor.SelectionStart == 20 && previousSearchButton.IsKeyboardFocused &&
+                model.SearchFeedback == "已定位到匹配内容", "点击上一个按钮循环到末尾并保留按钮焦点");
             model.EditorText = "aaa";
             model.SearchText = "aa";
             model.SearchNextCommand.Execute(null);
@@ -171,6 +199,29 @@ var thread = new Thread(() =>
             model.ClearSearchCommand.Execute(null);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Assert(searchBox.Text.Length == 0 && searchEditor.SelectionLength == 0, "清空搜索并移除高亮");
+            model.EditorText = "needle 开头\r\n" + string.Concat(Enumerable.Repeat("普通日志\r\n", 60)) +
+                new string('x', 500) + "needle 长行末尾\r\n";
+            model.SearchText = "needle";
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            model.SearchNextCommand.Execute(null);
+            model.SearchNextCommand.Execute(null);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            var matchRect = searchEditor.GetRectFromCharacterIndex(searchEditor.SelectionStart);
+            Capture(window, "wpf-search-long-line.png");
+            Assert(!matchRect.IsEmpty && matchRect.Left >= 0 && matchRect.Right < searchEditor.ActualWidth &&
+                matchRect.Top >= 0 && matchRect.Bottom < searchEditor.ActualHeight,
+                $"长行末尾及远处日志匹配项可视：区域={matchRect}，编辑器={searchEditor.ActualWidth}×{searchEditor.ActualHeight}，水平偏移={searchEditor.HorizontalOffset}，垂直偏移={searchEditor.VerticalOffset}");
+            var longLinePixels = SurfacePixels(searchEditor);
+            var samplePixel = ((int)Math.Ceiling(matchRect.Top + 1) * (int)searchEditor.ActualWidth +
+                (int)Math.Ceiling(matchRect.Left + 1)) * 4;
+            var background = ((SolidColorBrush)searchEditor.Background).Color;
+            Assert(longLinePixels[samplePixel] != background.B || longLinePixels[samplePixel + 1] != background.G ||
+                longLinePixels[samplePixel + 2] != background.R, "长行滚动完成后命中背景仍有可见高亮");
+            model.SearchPreviousCommand.Execute(null);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert(searchEditor.SelectionStart == 0 && searchEditor.HorizontalOffset < 1 && searchEditor.VerticalOffset < 1,
+                "上一个匹配项恢复到日志开头的可视位置");
+            model.ClearSearchCommand.Execute(null);
             model.EditorText = originalEditorText;
             model.Filter = "没有匹配的日志";
             Assert(model.FileView.IsEmpty, "文件筛选无结果");
@@ -312,6 +363,13 @@ static async Task WaitReady(MainViewModel model)
     finally { model.PropertyChanged -= listener; }
 }
 static void Assert(bool value, string scenario) { if (!value) throw new Exception("验证失败：" + scenario); }
+static void InvokeButton(Button button)
+{
+    button.Focus();
+    var peer = new System.Windows.Automation.Peers.ButtonAutomationPeer(button);
+    ((System.Windows.Automation.Provider.IInvokeProvider)peer.GetPattern(
+        System.Windows.Automation.Peers.PatternInterface.Invoke)).Invoke();
+}
 static IEnumerable<DependencyObject> Descendants(DependencyObject root)
 {
     for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
@@ -329,6 +387,24 @@ static void Capture(Window window, string name)
 }
 static void CaptureSurface(FrameworkElement surface, string name)
 {
+    var image = RenderSurface(surface);
+    var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
+    Directory.CreateDirectory("artifacts");
+    using var file = File.Create(Path.Combine("artifacts", name)); encoder.Save(file);
+}
+static byte[] SurfacePixels(FrameworkElement surface)
+{
+    // TextBox 的选区可绘制在窗口 AdornerLayer 中，必须从窗口整体截取该控件范围。
+    var root = (FrameworkElement)VisualTreeHelper.GetChild(Window.GetWindow(surface), 0);
+    var image = RenderSurface(root);
+    var origin = surface.TranslatePoint(new Point(), root);
+    var region = new Int32Rect((int)origin.X, (int)origin.Y, (int)surface.ActualWidth, (int)surface.ActualHeight);
+    var pixels = new byte[region.Width * region.Height * 4];
+    image.CopyPixels(region, pixels, region.Width * 4, 0);
+    return pixels;
+}
+static RenderTargetBitmap RenderSurface(FrameworkElement surface)
+{
     surface.UpdateLayout();
     var image = new RenderTargetBitmap((int)surface.ActualWidth, (int)surface.ActualHeight, 96, 96, PixelFormats.Pbgra32);
     // VisualBrush 去掉控件在父布局中的偏移，使操作区等局部预览也能完整渲染。
@@ -337,9 +413,7 @@ static void CaptureSurface(FrameworkElement surface, string name)
         context.DrawRectangle(new VisualBrush(surface) { Stretch = Stretch.Fill }, null,
             new Rect(0, 0, surface.ActualWidth, surface.ActualHeight));
     image.Render(drawing);
-    var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
-    Directory.CreateDirectory("artifacts");
-    using var file = File.Create(Path.Combine("artifacts", name)); encoder.Save(file);
+    return image;
 }
 sealed class TestDialogs : IDialogService
 {

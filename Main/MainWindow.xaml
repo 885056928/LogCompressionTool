@@ -154,6 +154,7 @@
                              AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                              FontFamily="{StaticResource CodeFont}" FontSize="13" Background="{StaticResource ConsoleBrush}" Foreground="{StaticResource ConsoleTextBrush}"
                              CaretBrush="{StaticResource ConsoleTextBrush}" BorderThickness="0" Padding="16" IsUndoEnabled="True" UndoLimit="20"
+                             IsInactiveSelectionHighlightEnabled="True"
                              AutomationProperties.Name="日志文本，可编辑时按 Ctrl+S 保存" />
                     <StackPanel Grid.Row="4" Margin="16,12,16,16">
                         <TextBlock Text="{Binding PreviewHint}" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,10" />
